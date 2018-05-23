@@ -15,38 +15,52 @@ namespace zabbix_o365_hook
 
         [Option('s', "subject", Required = true, HelpText = "Subject text for the webhook")]
         public string Subject { get; set; }
+
+        [Option('u', "url", Required = true, HelpText = "URL of the webhook to POST the message against")]
+        public string Url { get; set; }
     }
 
     class Program
     {
-        private static readonly HttpClient client = new HttpClient();
 
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            var subj = "test subject";
-            var msg = "test msg";
-
-            var cardText = ZabbixToCard(subject: subj, message: msg).ToJson();
-
-            CommandLine.Parser.Default.ParseArguments<Options>(args)
-                .WithNotParsed(errs => HandleParseError(errs))
-                .WithParsed(opts => RunWithParameters(opts));
             Console.WriteLine("Hello World!");
-            Console.WriteLine(cardText);
+            return Parser.Default.ParseArguments<Options>(args)
+                .MapResult(
+                options => RunWithParameters(options),
+                _ => 1
+                );
         }
-
-        static void RunWithParameters(Options opts)
+        /// <summary>
+        ///     Main procedure - POST the message as an active card to the URL provided.
+        /// </summary>
+        /// <param name="opts"></param>
+        /// <returns></returns>
+        static int RunWithParameters(Options opts)
         {
             var card = ZabbixToCard(subject: opts.Subject, message: opts.Message);
             var content = new StringContent(card.ToJson(), Encoding.UTF8, "application/json");
 
+            using(var client = new HttpClient())
+            {
+                var response = client.PostAsync(requestUri: opts.Url, content: content).Result;
+                try
+                {
+                    response.EnsureSuccessStatusCode();
+                    Console.WriteLine("Web Hook succeeded");
+                }
+                catch (HttpRequestException e)
+                {
+                    Console.WriteLine("Caught exception sending webhook");
+                    Console.WriteLine($"Message: {e.Message}");
+                    return 2;
+                }
+                return 0;
+            }
+           
+            
 
-            var response = client.PostAsync("", content);
-        }
-
-        static void HandleParseError(IEnumerable<Error> errors)
-        {
-            // exit
         }
 
         /// <summary>
