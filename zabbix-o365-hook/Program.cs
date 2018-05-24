@@ -18,11 +18,13 @@ namespace zabbix_o365_hook
 
         [Option('u', "url", Required = true, HelpText = "URL of the webhook to POST the message against")]
         public string Url { get; set; }
+
+        [Option("debug", Required = false, Default = false, HelpText = "Enable debugging mode")]
+        public bool DebugMode { get; set; }
     }
 
     class Program
     {
-
         static int Main(string[] args)
         {
             Console.WriteLine("Hello World!");
@@ -32,15 +34,21 @@ namespace zabbix_o365_hook
                 _ => 1
                 );
         }
+
         /// <summary>
         ///     Main procedure - POST the message as an active card to the URL provided.
         /// </summary>
-        /// <param name="opts"></param>
+        /// <param name="opts">Command line parameters</param>
         /// <returns></returns>
         static int RunWithParameters(Options opts)
         {
-            var card = ZabbixToCard(subject: opts.Subject, message: opts.Message);
+            var card = ZabbixToAdaptiveCard(subject: opts.Subject, message: opts.Message);
             var content = new StringContent(card.ToJson(), Encoding.UTF8, "application/json");
+
+            if (opts.DebugMode == true) {
+                Console.WriteLine("Sending Card with content: ");
+                Console.WriteLine(card.ToJson());
+            }
 
             using(var client = new HttpClient())
             {
@@ -58,9 +66,6 @@ namespace zabbix_o365_hook
                 }
                 return 0;
             }
-           
-            
-
         }
 
         /// <summary>
@@ -68,8 +73,11 @@ namespace zabbix_o365_hook
         /// </summary>
         /// <param name="subject">The subject of the message</param>
         /// <param name="message">The message itself</param>
-        /// <returns></returns>
-        static AdaptiveCard ZabbixToCard(string subject, string message)
+        /// <returns>
+        ///     An <see cref="AdaptiveCard"/> formattted 
+        ///     based on the Zabbix message received 
+        /// </returns>
+        static AdaptiveCard ZabbixToAdaptiveCard(string subject, string message)
         {
             var card = new AdaptiveCard();
 
@@ -92,6 +100,13 @@ namespace zabbix_o365_hook
             card.Body.Add(new AdaptiveContainer()
             {
                 Items = new List<AdaptiveElement> { headerBlock, messageBlock }
+            });
+
+            // Buttons to go to Zabbix
+            card.Actions.Add(new AdaptiveOpenUrlAction
+            {
+                Title = "Go to Zabbix",
+                Url = new Uri("https://zabbix.acc.guru")
             });
 
             card.Body.Add(new AdaptiveImage()
